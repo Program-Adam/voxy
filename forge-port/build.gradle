@@ -63,6 +63,28 @@ repositories {
 
 dependencies {
     minecraft "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
+
+    // Libraries used by Voxy's loader-independent persistence layer.
+    implementation platform('org.lwjgl:lwjgl-bom:3.3.3')
+    implementation 'org.lwjgl:lwjgl'
+    implementation 'org.lwjgl:lwjgl-lmdb'
+    implementation 'org.lwjgl:lwjgl-zstd'
+    implementation 'org.rocksdb:rocksdbjni:8.10.0'
+    implementation 'redis.clients:jedis:5.1.0'
+    implementation 'org.apache.commons:commons-pool2:2.12.0'
+}
+
+tasks.register('copyVoxyStorageSources', Copy) {
+    from('../src/main/java') {
+        include 'me/cortex/voxy/common/storage/**'
+        include 'me/cortex/voxy/common/util/**'
+    }
+    into layout.buildDirectory.dir('generated/voxy-common-sources')
+}
+
+sourceSets.main.java.srcDir layout.buildDirectory.dir('generated/voxy-common-sources')
+tasks.named('compileJava').configure {
+    dependsOn tasks.named('copyVoxyStorageSources')
 }
 
 tasks.named('processResources', ProcessResources).configure {
