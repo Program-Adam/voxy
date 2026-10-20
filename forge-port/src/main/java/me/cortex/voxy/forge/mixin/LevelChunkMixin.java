@@ -9,11 +9,14 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Observe successful client-side block-state writes, including server packet updates. */
+/**
+ * Forge equivalent of Voxy's Fabric block-update hook. The callback is deliberately
+ * lightweight: the actual chunk conversion is queued on Voxy's ingest workers.
+ */
 @Mixin(LevelChunk.class)
 public abstract class LevelChunkMixin {
     @Inject(
-            method = "setBlockState(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Z)Lnet/minecraft/world/level/block/state/BlockState;",
+            method = "setBlockState",
             at = @At("RETURN")
     )
     private void voxy$onBlockStateChanged(BlockPos pos, BlockState state, boolean moving,
