@@ -13,10 +13,11 @@ Source baseline: `16e37d9b776db4f84b7df7852c080328dfaa9998` (Minecraft 1.20.4 Fa
 | Identify source baseline | Complete | Pinned 1.20.4 Fabric commit |
 | Create isolated ForgeGradle project | Complete (scaffold only) | Build configuration, metadata, Java 17 target |
 | Add minimal Forge entry point | Complete (scaffold only) | Logs during mod construction; no Voxy renderer is wired |
-| Verify Forge scaffold build | Pending CI | Workflow added to build this project |
-| Port common initialization and config | Not started | Use baseline source and target Forge APIs |
+| Port config path and persistence | Initial implementation | Uses `FMLPaths.CONFIGDIR`, preserves key options/defaults, writes config atomically where supported |
+| Verify Forge scaffold build | In progress | GitHub Actions workflow builds the isolated project |
+| Port common initialization and commands | Not started | Replace Fabric lifecycle/command APIs |
 | Port chunk ingestion and LOD persistence | Not started | Preserve storage compatibility where possible |
-| Port rendering and Minecraft mixins | Not started | Highest-risk work; all targets must be verified against 1.20.1 |
+| Port rendering and Minecraft mixins | Not started | Highest-risk work; source uses Yarn names while ForgeGradle uses Mojang mappings |
 | Port optional integrations | Not started | Keep optional until the core renderer works |
 | Runtime smoke tests | Not started | Requires a Forge 1.20.1 client and compatible GPU/runtime |
 
@@ -29,4 +30,4 @@ Source baseline: `16e37d9b776db4f84b7df7852c080328dfaa9998` (Minecraft 1.20.4 Fa
 
 ## Immediate next step
 
-Build the minimal Forge project in CI, then start porting the client bootstrap and loader-specific API boundaries from the pinned 1.20.4 source.
+Verify the scaffold build, then port the client bootstrap and loader-specific API boundaries from the pinned 1.20.4 source. The renderer cannot be wired safely until its Minecraft references and mixins have been migrated from Yarn names to the Forge mapping namespace.
