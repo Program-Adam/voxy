@@ -7,6 +7,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.PalettedContainer;
+import net.minecraft.world.level.chunk.PalettedContainerRO;
 
 import java.util.function.ToIntFunction;
 
@@ -23,7 +24,7 @@ public final class WorldConversionFactory {
     private WorldConversionFactory() {}
 
     public static VoxelizedSection convert(Mapper mapper, PalettedContainer<BlockState> blocks,
-                                           PalettedContainer<Holder<Biome>> biomes,
+                                           PalettedContainerRO<Holder<Biome>> biomes,
                                            LightSupplier lightSupplier, int sx, int sy, int sz) {
         var blockCache = BLOCK_CACHE.get();
         blockCache.clear();
