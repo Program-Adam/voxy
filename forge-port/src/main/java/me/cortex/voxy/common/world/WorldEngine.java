@@ -132,8 +132,10 @@ public final class WorldEngine implements AutoCloseable {
     }
 
     @Override public void close() {
-        if (!closed.compareAndSet(false, true)) return;
+        if (closed.get()) return;
+        // Keep the engine open while the ingestion workers drain their queue.
         try { ingestService.close(); } catch (Exception e) { System.err.println(e); }
+        if (!closed.compareAndSet(false, true)) return;
         saveExecutor.shutdown();
         try {
             if (!saveExecutor.awaitTermination(60, TimeUnit.SECONDS)) {
