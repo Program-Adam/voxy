@@ -18,14 +18,14 @@ This is an incremental port. The root Fabric project is kept as the source/refer
 | Voxel conversion and mip generation | Initial Mojmap port | 16³ chunk section to Voxy voxel format, four generated mip levels |
 | World engine and save queue | Initial port | Loads/stores sections, applies voxel updates, saves asynchronously |
 | Forge chunk-load ingestion | Initial wiring | Client chunk-load events enqueue sections for background conversion |
-| Chunk-change tracking | Not complete | Chunk-load ingestion only; changes after initial load need a reliable client hook/mixin |
+| Chunk-change tracking | Initial hook implemented | Client `LevelChunk.setBlockState` mixin re-enqueues changed chunks; repeated updates are coalesced while queued |
 | Renderer and mixins | Not ported | No far-distance geometry is currently drawn |
 | Native packaging and runtime verification | Unverified for latest changes | Need clean CI build and an actual Forge client smoke test |
 
 ## Next actions
 
 1. Run the Forge build/tests and fix any Mojmap/API compile issues from the mapper and ingestion migration.
-2. Capture chunk block states, biome data and lighting safely when chunks change, not only when they load.
+2. Validate the chunk-change mixin on a Forge client and confirm re-ingestion stays responsive under rapid block updates.
 3. Port renderer buffers, render hooks and required mixins/access transformers.
 4. Verify storage compatibility and run world join/leave, save/reload and GPU/native cleanup tests.
 
@@ -33,7 +33,7 @@ This is an incremental port. The root Fabric project is kept as the source/refer
 
 - [ ] Clean build and tests on JDK 17.
 - [ ] Forge client launches without Fabric APIs.
-- [ ] Chunk load and subsequent block/chunk changes feed ingestion.
+- [ ] Chunk load and subsequent block/chunk changes feed ingestion (hook implemented; runtime test pending).
 - [ ] Distant terrain is visibly rendered in a real Forge client.
 - [ ] Data survives restart and existing storage formats remain readable.
 - [ ] World leave and shutdown release worker threads and native/GPU resources.
