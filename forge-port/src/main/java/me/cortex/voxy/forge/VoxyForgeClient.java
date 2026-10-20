@@ -66,7 +66,9 @@ public final class VoxyForgeClient {
 
     private static void onChunkLoad(ChunkEvent.Load event) {
         if (!(event.getLevel() instanceof ClientLevel level) || level != Minecraft.getInstance().level) return;
-        if (!(event.getChunk() instanceof LevelChunk chunk) || !ForgeVoxyConfig.CONFIG.ingestEnabled) return;
+        ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
+        if (!config.enabled || !config.ingestEnabled) return;
+        if (!(event.getChunk() instanceof LevelChunk chunk)) return;
         WorldEngine engine = worldEngine;
         if (engine != null && observedLevel == level) engine.ingestService.enqueue(chunk);
         else pendingChunks.offer(chunk);
@@ -77,7 +79,8 @@ public final class VoxyForgeClient {
         clientTicks++;
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel currentLevel = minecraft.level;
-        if (currentLevel == observedLevel) return;
+        boolean shouldRun = currentLevel != null && ForgeVoxyConfig.CONFIG.enabled;
+        if (currentLevel == observedLevel && ((shouldRun && worldEngine != null) || (!shouldRun && worldEngine == null))) return;
 
         if (worldEngine != null) {
             LOGGER.info("Closing Voxy world engine after {} client ticks.", clientTicks);
@@ -86,8 +89,8 @@ public final class VoxyForgeClient {
             worldEngine = null;
         }
         observedLevel = currentLevel;
-        if (currentLevel == null) {
-            LOGGER.info("Voxy observed client world unload.");
+        if (currentLevel == null || !ForgeVoxyConfig.CONFIG.enabled) {
+            LOGGER.info(currentLevel == null ? "Voxy observed client world unload." : "Voxy is disabled; world ingestion is stopped.");
             return;
         }
 
