@@ -4,17 +4,14 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.cortex.voxy.common.storage.StorageBackend;
 import net.minecraft.core.Holder;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.biome.Biome;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.nbt.Tag;
 import org.lwjgl.system.MemoryUtil;
 
@@ -191,7 +188,7 @@ public final class Mapper {
         catch (Exception e) { throw new IllegalStateException("Could not serialize mapping", e); }
     }
     private static CompoundTag read(byte[] bytes) {
-        try { return NbtIo.readCompressed(new ByteArrayInputStream(bytes), NbtAccounter.unlimitedHeap()); }
+        try { return NbtIo.readCompressed(new ByteArrayInputStream(bytes), NbtAccounter.UNLIMITED); }
         catch (Exception e) { throw new IllegalStateException("Could not deserialize mapping", e); }
     }
 }
