@@ -1,6 +1,12 @@
 package me.cortex.voxy.forge.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import me.cortex.voxy.common.world.WorldEngine;
 import me.cortex.voxy.common.world.WorldSection;
 import me.cortex.voxy.common.world.other.Mapper;
@@ -8,11 +14,6 @@ import me.cortex.voxy.forge.VoxyForgeClient;
 import me.cortex.voxy.forge.config.ForgeVoxyConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.Tesselator;
-import net.minecraft.client.renderer.BufferUploader;
-import net.minecraft.client.renderer.VertexConsumer;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormat;
-import net.minecraft.client.renderer.vertex.VertexFormat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -24,11 +25,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Conservative fallback renderer for the Forge port.
- *
- * It draws the highest occupied cell of the coarsest persisted voxel mip.
- * This is intentionally independent of Voxy's advanced compute/meshlet renderer,
- * which still needs a full Forge port.
+ * Conservative Forge render-stage hook. Draws stored coarse voxel top faces;
+ * this is a fallback and not the original meshlet/compute Voxy renderer.
  */
 @Mod.EventBusSubscriber(modid = "voxy", value = net.minecraftforge.api.distmarker.Dist.CLIENT)
 public final class BasicLodRenderer {
@@ -49,15 +47,17 @@ public final class BasicLodRenderer {
         if (engine == null) return;
 
         var camera = event.getCamera().getPosition();
-        int centerX = floorDiv((int)Math.floor(camera.x), SECTION_BLOCK_SIZE);
-        int centerY = floorDiv((int)Math.floor(camera.y), SECTION_BLOCK_SIZE);
-        int centerZ = floorDiv((int)Math.floor(camera.z), SECTION_BLOCK_SIZE);
-        int radius = MAX_SECTION_RADIUS;
+        int centerX = Math.floorDiv((int) Math.floor(camera.x), SECTION_BLOCK_SIZE);
+        int centerY = Math.floorDiv((int) Math.floor(camera.y), SECTION_BLOCK_SIZE);
+        int centerZ = Math.floorDiv((int) Math.floor(camera.z), SECTION_BLOCK_SIZE);
         Matrix4f pose = event.getPoseStack().last().pose();
         Tesselator tesselator = Tesselator.getInstance();
-        var builder = tesselator.getBuilder();
-        boolean began = false;
-        if (lastEngine != engine) { COLORS.clear(); lastEngine = engine; }
+        BufferBuilder builder = tesselator.getBuilder();
+        boolean hasVertices = false;
+        if (lastEngine != engine) {
+            COLORS.clear();
+            lastEngine = engine;
+        }
 
         RenderSystem.enableDepthTest();
         RenderSystem.enableCull();
@@ -65,8 +65,8 @@ public final class BasicLodRenderer {
         builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
 
         try {
-            for (int sx = centerX - radius; sx <= centerX + radius; sx++) {
-                for (int sz = centerZ - radius; sz <= centerZ + radius; sz++) {
+            for (int sx = centerX - MAX_SECTION_RADIUS; sx <= centerX + MAX_SECTION_RADIUS; sx++) {
+                for (int sz = centerZ - MAX_SECTION_RADIUS; sz <= centerZ + MAX_SECTION_RADIUS; sz++) {
                     for (int sy = Math.max(-4, centerY - 2); sy <= Math.min(4, centerY + 1); sy++) {
                         WorldSection section;
                         try {
@@ -86,57 +86,45 @@ public final class BasicLodRenderer {
                                         long voxel = voxels[WorldSection.getIndex(x, y, z)];
                                         if (Mapper.isAir(voxel)) continue;
                                         int blockId = Mapper.getBlockId(voxel);
-                                        Integer cachedColor = COLORS.get(blockId);
-                                        int color;
-                                        if (cachedColor != null) {
-                                            color = cachedColor;
-                                        } else {
+                                        int color = COLORS.computeIfAbsent(blockId, id -> {
                                             try {
-                                                BlockState state = engine.getMapper().getBlockStateFromBlockId(blockId);
-                                                color = state.getMapColor(mc.level,
-                                                        new BlockPos(baseX + x * (1 << LOD_LEVEL),
-                                                                baseY + y * (1 << LOD_LEVEL),
-                                                                baseZ + z * (1 << LOD_LEVEL))).col;
-                                            } catch (RuntimeException e) {
-                                                color = 0x777777;
+                                                BlockState state = engine.getMapper().getBlockStateFromBlockId(id);
+                                                return state.getMapColor(mc.level, new BlockPos(baseX, baseY, baseZ)).col;
+                                            } catch (RuntimeException ex) {
+                                                return 0x777777;
                                             }
-                                            COLORS.put(blockId, color);
-                                        }
+                                        });
                                         float red = ((color >> 16) & 255) / 255.0f;
                                         float green = ((color >> 8) & 255) / 255.0f;
                                         float blue = (color & 255) / 255.0f;
-                                        float wx = baseX + x * (1 << LOD_LEVEL) - (float) camera.x;
-                                        float wy = baseY + (y + 1) * (1 << LOD_LEVEL) - (float) camera.y;
-                                        float wz = baseZ + z * (1 << LOD_LEVEL) - (float) camera.z;
                                         float size = 1 << LOD_LEVEL;
+                                        float wx = baseX + x * size - (float) camera.x;
+                                        float wy = baseY + (y + 1) * size - (float) camera.y;
+                                        float wz = baseZ + z * size - (float) camera.z;
                                         vertex(builder, pose, wx, wy, wz, red, green, blue);
                                         vertex(builder, pose, wx, wy, wz + size, red, green, blue);
                                         vertex(builder, pose, wx + size, wy, wz + size, red, green, blue);
                                         vertex(builder, pose, wx + size, wy, wz, red, green, blue);
+                                        hasVertices = true;
                                         break;
                                     }
                                 }
                             }
-                            began = true;
                         } finally {
                             section.release();
                         }
                     }
                 }
             }
-            if (began) BufferUploader.drawWithShader(builder.end());
-            else builder.end().close();
+            var rendered = builder.end();
+            if (hasVertices) BufferUploader.drawWithShader(rendered);
+            else rendered.close();
         } catch (RuntimeException | Error error) {
-            // Do not let a rendering fallback crash the whole client.
             try { builder.end().close(); } catch (Throwable ignored) {}
             throw error;
         } finally {
             RenderSystem.disableCull();
         }
-    }
-
-    private static int floorDiv(int value, int divisor) {
-        return Math.floorDiv(value, divisor);
     }
 
     private static void vertex(VertexConsumer consumer, Matrix4f pose, float x, float y, float z,
