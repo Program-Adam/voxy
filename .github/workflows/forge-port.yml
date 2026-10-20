@@ -13,6 +13,10 @@ on:
       - '.github/workflows/forge-port.yml'
   workflow_dispatch:
 
+concurrency:
+  group: forge-port-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
