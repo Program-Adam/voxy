@@ -72,14 +72,38 @@ repositories {
 dependencies {
     minecraft "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
 
-    // Libraries used by Voxy's loader-independent persistence layer.
+    // Minecraft supplies the LWJGL core; Voxy bundles the extra bindings and their native payloads.
     implementation platform('org.lwjgl:lwjgl-bom:3.3.3')
     implementation 'org.lwjgl:lwjgl'
-    implementation 'org.lwjgl:lwjgl-lmdb'
-    implementation 'org.lwjgl:lwjgl-zstd'
-    implementation 'org.rocksdb:rocksdbjni:8.10.0'
-    implementation 'redis.clients:jedis:5.1.0'
-    implementation 'org.apache.commons:commons-pool2:2.12.0'
+
+    jarJar(implementation('org.lwjgl:lwjgl-lmdb:3.3.3')) {
+        jarJar.ranged(it, '[3.3.3,3.3.4)')
+    }
+    jarJar(implementation('org.lwjgl:lwjgl-zstd:3.3.3')) {
+        jarJar.ranged(it, '[3.3.3,3.3.4)')
+    }
+    jarJar(runtimeOnly('org.lwjgl:lwjgl-lmdb:3.3.3:natives-windows')) {
+        jarJar.ranged(it, '[3.3.3,3.3.4)')
+    }
+    jarJar(runtimeOnly('org.lwjgl:lwjgl-lmdb:3.3.3:natives-linux')) {
+        jarJar.ranged(it, '[3.3.3,3.3.4)')
+    }
+    jarJar(runtimeOnly('org.lwjgl:lwjgl-zstd:3.3.3:natives-windows')) {
+        jarJar.ranged(it, '[3.3.3,3.3.4)')
+    }
+    jarJar(runtimeOnly('org.lwjgl:lwjgl-zstd:3.3.3:natives-linux')) {
+        jarJar.ranged(it, '[3.3.3,3.3.4)')
+    }
+
+    jarJar(implementation('org.rocksdb:rocksdbjni:8.10.0')) {
+        jarJar.ranged(it, '[8.10.0,8.10.1)')
+    }
+    jarJar(implementation('redis.clients:jedis:5.1.0')) {
+        jarJar.ranged(it, '[5.1.0,5.1.1)')
+    }
+    jarJar(implementation('org.apache.commons:commons-pool2:2.12.0')) {
+        jarJar.ranged(it, '[2.12.0,2.12.1)')
+    }
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
 }
