@@ -85,7 +85,6 @@ public final class VoxyForgeClient {
             catch (Throwable error) { LOGGER.error("Failed to close Voxy world engine cleanly", error); }
             worldEngine = null;
         }
-        pendingChunks.clear();
         observedLevel = currentLevel;
         if (currentLevel == null) {
             LOGGER.info("Voxy observed client world unload.");
@@ -99,7 +98,9 @@ public final class VoxyForgeClient {
                     Math.max(1, config.ingestThreads), Math.max(1, config.savingThreads), 4);
             LOGGER.info("Voxy world engine started for dimension {}.", currentLevel.dimension().location());
             LevelChunk chunk;
-            while ((chunk = pendingChunks.poll()) != null) worldEngine.ingestService.enqueue(chunk);
+            while ((chunk = pendingChunks.poll()) != null) {
+                if (chunk.getLevel() == currentLevel) worldEngine.ingestService.enqueue(chunk);
+            }
         } catch (Throwable error) {
             LOGGER.error("Could not start Voxy world engine; chunk ingestion disabled for this world", error);
             worldEngine = null;
