@@ -40,3 +40,5 @@ This is an incremental port. The root Fabric project is kept as the source/refer
 
 **Important:** this branch now includes the first Forge mapper/conversion/ingestion path, but it is not yet a playable LOD renderer. The renderer is not migrated, and the new code has not been verified by a fresh build or runtime test yet.
 
+
+<!-- build check -->
