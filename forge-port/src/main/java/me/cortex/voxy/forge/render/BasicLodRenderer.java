@@ -34,8 +34,9 @@ import java.util.Map;
 public final class BasicLodRenderer {
     private static final int LOD_LEVEL = 3;
     private static final int SECTION_BLOCK_SIZE = 32 << LOD_LEVEL;
-    private static final int MAX_SECTION_RADIUS = 6;
+    private static final int MAX_SECTION_RADIUS = 2;
     private static final Map<Integer, Integer> COLORS = new HashMap<>();
+    private static WorldEngine lastEngine;
 
     private BasicLodRenderer() {}
 
@@ -51,12 +52,12 @@ public final class BasicLodRenderer {
         int centerX = floorDiv((int)Math.floor(camera.x), SECTION_BLOCK_SIZE);
         int centerY = floorDiv((int)Math.floor(camera.y), SECTION_BLOCK_SIZE);
         int centerZ = floorDiv((int)Math.floor(camera.z), SECTION_BLOCK_SIZE);
-        int radius = Math.min(MAX_SECTION_RADIUS, Math.max(1, ForgeVoxyConfig.CONFIG.renderDistance / 8));
+        int radius = MAX_SECTION_RADIUS;
         Matrix4f pose = event.getPoseStack().last().pose();
         Tesselator tesselator = Tesselator.getInstance();
         var builder = tesselator.getBuilder();
         boolean began = false;
-        COLORS.clear();
+        if (lastEngine != engine) { COLORS.clear(); lastEngine = engine; }
 
         RenderSystem.enableDepthTest();
         RenderSystem.enableCull();
