@@ -16,11 +16,14 @@ import java.nio.file.Path;
  * Forge-side configuration storage for the port.
  *
  * This deliberately avoids FabricLoader so the Forge artifact has no Fabric
- * bootstrap dependency. The existing Voxy option names/defaults are preserved
- * where they are loader-independent.
+ * bootstrap dependency. Existing option names and the default per-world
+ * storage configuration are preserved for compatibility with Voxy saves.
  */
 public final class ForgeVoxyConfig {
     private static final Logger LOGGER = LoggerFactory.getLogger("Voxy/Config");
+    private static final String DEFAULT_STORAGE_CONFIG = """
+            {"minYOverride":2147483647,"maxYOverride":-2147483648,"storageConfig":{"TYPE":"CompressionAdaptor","delegate":{"TYPE":"RocksDB"},"compressor":{"TYPE":"ZSTD","compressionLevel":7}}}
+            """.trim();
     private static final Gson GSON = new GsonBuilder()
             .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
             .setPrettyPrinting()
@@ -39,7 +42,7 @@ public final class ForgeVoxyConfig {
     public int savingThreads = 4;
     public int renderThreads = 5;
     public boolean useMeshShaderIfPossible = true;
-    public String defaultSaveConfig = "default";
+    public String defaultSaveConfig = DEFAULT_STORAGE_CONFIG;
 
     private ForgeVoxyConfig() {
     }
@@ -51,7 +54,7 @@ public final class ForgeVoxyConfig {
                 ForgeVoxyConfig config = GSON.fromJson(reader, ForgeVoxyConfig.class);
                 if (config != null) {
                     if (config.defaultSaveConfig == null) {
-                        config.defaultSaveConfig = "default";
+                        config.defaultSaveConfig = DEFAULT_STORAGE_CONFIG;
                     }
                     return config;
                 }
