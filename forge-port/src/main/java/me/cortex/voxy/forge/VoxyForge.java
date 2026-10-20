@@ -1,7 +1,7 @@
 package me.cortex.voxy.forge;
 
 import com.mojang.logging.LogUtils;
-import net.minecraftforge.fml.Dist;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 import org.slf4j.Logger;
