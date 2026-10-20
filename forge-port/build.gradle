@@ -67,6 +67,7 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
+    maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
 }
 
 configurations {
@@ -150,6 +151,7 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.withType(JavaCompile).configureEach {
+    doFirst { layout.buildDirectory.dir('tmp/mixins').get().asFile.mkdirs() }
     options.encoding = 'UTF-8'
     options.release = 17
     options.compilerArgs += [
@@ -159,6 +161,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('processResources', ProcessResources).configure {
+    dependsOn tasks.named('compileJava')
     from(layout.buildDirectory.file('tmp/mixins/voxy-forge.refmap.json')) {
         into ''
     }
