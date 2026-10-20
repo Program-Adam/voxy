@@ -19,14 +19,14 @@ This is an incremental port. The root Fabric project is kept as the source/refer
 | World engine and save queue | Initial port | Loads/stores sections, applies voxel updates, saves asynchronously |
 | Forge chunk-load ingestion | Initial wiring | Client chunk-load events enqueue sections for background conversion |
 | Chunk-change tracking | Initial hook implemented | Client `LevelChunk.setBlockState` mixin re-enqueues changed chunks; repeated updates are coalesced while queued |
-| Renderer and mixins | Not ported | No far-distance geometry is currently drawn |
+| Renderer and mixins | Experimental fallback added | Forge world-stage renderer draws coarse persisted voxel top surfaces; advanced GPU meshlet/compute renderer and side-face/occlusion pipeline remain unported |
 | Native packaging and runtime verification | Unverified for latest changes | Need clean CI build and an actual Forge client smoke test |
 
 ## Next actions
 
 1. Run the Forge build/tests and fix any Mojmap/API compile issues from the mapper and ingestion migration.
 2. Validate the chunk-change mixin on a Forge client and confirm re-ingestion stays responsive under rapid block updates.
-3. Port renderer buffers, render hooks and required mixins/access transformers.
+3. Replace the experimental coarse-surface renderer with Voxy's full GPU mesh generation, hierarchical traversal, occlusion and shader pipeline; validate camera transforms and chunk coverage.
 4. Verify storage compatibility and run world join/leave, save/reload and GPU/native cleanup tests.
 
 ## Acceptance criteria
@@ -34,7 +34,8 @@ This is an incremental port. The root Fabric project is kept as the source/refer
 - [ ] Clean build and tests on JDK 17.
 - [ ] Forge client launches without Fabric APIs.
 - [ ] Chunk load and subsequent block/chunk changes feed ingestion (hook implemented; runtime test pending).
-- [ ] Distant terrain is visibly rendered in a real Forge client.
+- [ ] Experimental coarse LOD renderer builds and is visually validated in a real Forge client.
+- [ ] Full Voxy LOD rendering quality, occlusion, lighting and performance are ported and validated.
 - [ ] Data survives restart and existing storage formats remain readable.
 - [ ] World leave and shutdown release worker threads and native/GPU resources.
 
