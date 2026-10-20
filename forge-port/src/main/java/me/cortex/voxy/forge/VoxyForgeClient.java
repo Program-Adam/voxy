@@ -64,6 +64,17 @@ public final class VoxyForgeClient {
         event.registerAboveAll("voxy_status", STATUS_OVERLAY);
     }
 
+    /** Called by the LevelChunk mixin after a successful block-state mutation on the client. */
+    public static void onChunkBlockChanged(LevelChunk chunk) {
+        if (chunk == null || !(chunk.getLevel() instanceof ClientLevel level)
+                || level != Minecraft.getInstance().level) return;
+        ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
+        WorldEngine engine = worldEngine;
+        if (config.enabled && config.ingestEnabled && engine != null && observedLevel == level) {
+            engine.ingestService.enqueue(chunk);
+        }
+    }
+
     private static void onChunkLoad(ChunkEvent.Load event) {
         if (!(event.getLevel() instanceof ClientLevel level) || level != Minecraft.getInstance().level) return;
         ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
