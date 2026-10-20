@@ -57,6 +57,7 @@ public final class VoxyForgeClient {
         MinecraftForge.EVENT_BUS.addListener(VoxyForgeClient::registerClientCommands);
         MinecraftForge.EVENT_BUS.addListener(VoxyForgeClient::onClientTick);
         MinecraftForge.EVENT_BUS.addListener(VoxyForgeClient::onChunkLoad);
+        MinecraftForge.EVENT_BUS.addListener(VoxyForgeClient::onChunkUnload);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(VoxyForgeClient::registerOverlays);
     }
 
@@ -83,6 +84,20 @@ public final class VoxyForgeClient {
         WorldEngine engine = worldEngine;
         if (engine != null && observedLevel == level) engine.ingestService.enqueue(chunk);
         else pendingChunks.offer(chunk);
+    }
+
+    /**
+     * Preserve the last state of a client chunk before it leaves the client cache.
+     * This mirrors Voxy's Fabric chunk-cache drop hook without relying on a Fabric API.
+     */
+    private static void onChunkUnload(ChunkEvent.Unload event) {
+        if (!(event.getLevel() instanceof ClientLevel level) || level != Minecraft.getInstance().level) return;
+        if (!(event.getChunk() instanceof LevelChunk chunk)) return;
+        ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
+        WorldEngine engine = worldEngine;
+        if (config.enabled && config.ingestEnabled && engine != null && observedLevel == level) {
+            engine.ingestService.enqueue(chunk);
+        }
     }
 
     private static void onClientTick(TickEvent.ClientTickEvent event) {
