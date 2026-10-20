@@ -37,3 +37,11 @@ jobs:
 
       - name: Build Forge port
         run: gradle -p forge-port build
+
+      - name: Upload Forge mod jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxy-forge-1.20.1-${{ github.sha }}
+          path: forge-port/build/libs/*.jar
+          if-no-files-found: error
+          retention-days: 14
