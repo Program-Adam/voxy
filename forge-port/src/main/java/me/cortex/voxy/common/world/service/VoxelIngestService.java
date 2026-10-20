@@ -88,11 +88,12 @@ public final class VoxelIngestService implements AutoCloseable {
 
     @Override public void close() {
         if (!running.compareAndSet(true, false)) return;
-        for (Thread worker : workers) worker.interrupt();
+        // Workers drain queued chunks before exiting so world shutdown does not
+        // silently discard the final set of chunk updates.
         for (Thread worker : workers) {
-            try { worker.join(5000); }
+            try { worker.join(30_000); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
         }
-        queue.clear();
+        for (Thread worker : workers) if (worker.isAlive()) worker.interrupt();
     }
 }
