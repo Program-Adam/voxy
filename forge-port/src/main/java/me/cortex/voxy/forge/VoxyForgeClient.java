@@ -150,7 +150,7 @@ public final class VoxyForgeClient {
                             "Voxy Forge: enabled=" + config.enabled + ", world=" + world
                                     + ", engine=" + (engine == null ? "stopped" : "running")
                                     + ", queuedChunks=" + (engine == null ? 0 : engine.ingestService.getTaskCount())
-                                    + ". LOD renderer is not ported yet."),
+                                    + ". Experimental coarse LOD renderer active; full GPU renderer remains unported."),
                             false);
                     return 1;
                 })));
