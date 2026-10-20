@@ -80,6 +80,16 @@ tasks.register('copyVoxyStorageSources', Copy) {
     from('../src/main/java') {
         include 'me/cortex/voxy/common/storage/**'
         include 'me/cortex/voxy/common/util/**'
+        filter { line ->
+            line
+                .replace('net.minecraft.util.math.random.RandomSeed', 'net.minecraft.world.level.levelgen.RandomSupport')
+                .replace('RandomSeed.mixStafford13', 'RandomSupport.mixStafford13')
+                .replace('import me.cortex.voxy.common.world.WorldEngine;', 'import me.cortex.voxy.common.world.WorldSectionId;')
+                .replace('WorldEngine.', 'WorldSectionId.')
+                .replace('Streams.of(this.maps).map(Long2ObjectMap::values).flatMap(ObjectCollection::stream)',
+                         'java.util.Arrays.stream(this.maps).map(Long2ObjectMap::values).flatMap(ObjectCollection::stream)')
+                .replace('import org.apache.commons.lang3.stream.Streams;', '')
+        }
     }
     into layout.buildDirectory.dir('generated/voxy-common-sources')
 }
