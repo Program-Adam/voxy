@@ -78,7 +78,7 @@ public final class WorldConversionFactory {
     }
 
     private static long mip(long[] data, int offset, int x, int y, int z, Mapper mapper) {
-        int size = offset == 4096 ? 16 : offset == 4608 ? 8 : 4;
+        int size = offset == 4096 ? 8 : offset == 4608 ? 4 : 2;
         return Mipper.mip(data[offset + ((y) * size * size + z * size + x)],
                 data[offset + (y * size * size + z * size + x+1)],
                 data[offset + (y * size * size + (z+1) * size + x)],
