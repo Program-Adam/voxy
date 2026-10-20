@@ -82,18 +82,10 @@ dependencies {
     jarJar(implementation('org.lwjgl:lwjgl-zstd:3.3.3')) {
         jarJar.ranged(it, '[3.3.3,3.3.4)')
     }
-    jarJar(runtimeOnly('org.lwjgl:lwjgl-lmdb:3.3.3:natives-windows')) {
-        jarJar.ranged(it, '[3.3.3,3.3.4)')
-    }
-    jarJar(runtimeOnly('org.lwjgl:lwjgl-lmdb:3.3.3:natives-linux')) {
-        jarJar.ranged(it, '[3.3.3,3.3.4)')
-    }
-    jarJar(runtimeOnly('org.lwjgl:lwjgl-zstd:3.3.3:natives-windows')) {
-        jarJar.ranged(it, '[3.3.3,3.3.4)')
-    }
-    jarJar(runtimeOnly('org.lwjgl:lwjgl-zstd:3.3.3:natives-linux')) {
-        jarJar.ranged(it, '[3.3.3,3.3.4)')
-    }
+    jarJar(runtimeOnly('org.lwjgl:lwjgl-lmdb:3.3.3:natives-windows'))
+    jarJar(runtimeOnly('org.lwjgl:lwjgl-lmdb:3.3.3:natives-linux'))
+    jarJar(runtimeOnly('org.lwjgl:lwjgl-zstd:3.3.3:natives-windows'))
+    jarJar(runtimeOnly('org.lwjgl:lwjgl-zstd:3.3.3:natives-linux'))
 
     jarJar(implementation('org.rocksdb:rocksdbjni:8.10.0')) {
         jarJar.ranged(it, '[8.10.0,8.10.1)')
