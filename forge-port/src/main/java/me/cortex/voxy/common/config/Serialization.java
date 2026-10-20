@@ -11,28 +11,31 @@ import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import me.cortex.voxy.common.storage.config.CompressorConfig;
 import me.cortex.voxy.common.storage.config.StorageConfig;
+import me.cortex.voxy.common.storage.compressors.ZSTDCompressor;
+import me.cortex.voxy.common.storage.inmemory.MemoryStorageBackend;
+import me.cortex.voxy.common.storage.lmdb.LMDBStorageBackend;
+import me.cortex.voxy.common.storage.other.BasicPathInsertionConfig;
+import me.cortex.voxy.common.storage.other.CompressionStorageAdaptor;
+import me.cortex.voxy.common.storage.other.ConditionalStorageBackendConfig;
+import me.cortex.voxy.common.storage.other.FragmentedStorageBackendAdaptor;
+import me.cortex.voxy.common.storage.other.ReadonlyCachingLayer;
+import me.cortex.voxy.common.storage.other.TranslocatingStorageAdaptor;
+import me.cortex.voxy.common.storage.redis.RedisStorageBackend;
+import me.cortex.voxy.common.storage.rocksdb.RocksDBStorageBackend;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.net.JarURLConnection;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.jar.JarFile;
 
 /**
  * Forge-compatible replacement for Fabric's config class discovery.
  *
- * Storage config implementations are discovered from this mod's classpath,
- * then registered with Gson using the same TYPE discriminator format as the
- * Fabric build so existing per-world storage JSON remains readable.
+ * Config implementations are registered explicitly rather than discovered
+ * through FabricLoader, preserving the existing TYPE discriminator format
+ * while avoiding loader-specific classpath scanning in production Forge.
  */
 public final class Serialization {
     public static final Set<Class<?>> CONFIG_TYPES = new HashSet<>();
@@ -105,92 +108,39 @@ public final class Serialization {
         }
     }
 
+    private static <T> void register(GsonConfigSerialization<T> serializer, Class<? extends T> implementation) {
+        try {
+            Method method = implementation.getMethod("getConfigTypeName");
+            serializer.register((String) method.invoke(null), implementation);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Invalid config implementation: " + implementation.getName(), e);
+        }
+    }
+
     public static synchronized void init() {
         if (initialized) {
             return;
         }
 
-        Map<Class<?>, GsonConfigSerialization<?>> serializers = new HashMap<>();
-        Set<String> classNames = collectAllClasses("me.cortex.voxy");
-        int registered = 0;
+        GsonConfigSerialization<StorageConfig> storage = new GsonConfigSerialization<>(StorageConfig.class);
+        register(storage, RocksDBStorageBackend.Config.class);
+        register(storage, LMDBStorageBackend.Config.class);
+        register(storage, RedisStorageBackend.Config.class);
+        register(storage, MemoryStorageBackend.Config.class);
+        register(storage, BasicPathInsertionConfig.class);
+        register(storage, CompressionStorageAdaptor.Config.class);
+        register(storage, ConditionalStorageBackendConfig.class);
+        register(storage, FragmentedStorageBackendAdaptor.Config.class);
+        register(storage, ReadonlyCachingLayer.Config.class);
+        register(storage, TranslocatingStorageAdaptor.Config.class);
 
-        for (String className : classNames) {
-            String lowerName = className.toLowerCase();
-            if (!lowerName.contains("config") || lowerName.contains("mixin")
-                    || className.endsWith("VoxyConfig") || className.endsWith("Serialization")) {
-                continue;
-            }
+        GsonConfigSerialization<CompressorConfig> compressors = new GsonConfigSerialization<>(CompressorConfig.class);
+        register(compressors, ZSTDCompressor.Config.class);
 
-            try {
-                Class<?> implementation = Class.forName(className, true, Serialization.class.getClassLoader());
-                if (Modifier.isAbstract(implementation.getModifiers())) {
-                    continue;
-                }
-
-                Class<?> parent = implementation;
-                while ((parent = parent.getSuperclass()) != null) {
-                    if (!CONFIG_TYPES.contains(parent)) {
-                        continue;
-                    }
-
-                    Method typeNameMethod = implementation.getMethod("getConfigTypeName");
-                    String typeName = (String) typeNameMethod.invoke(null);
-                    GsonConfigSerialization serializer = serializers.computeIfAbsent(
-                            parent, key -> new GsonConfigSerialization(key));
-                    serializer.register(typeName, implementation);
-                    registered++;
-                    break;
-                }
-            } catch (ClassNotFoundException ignored) {
-                // Optional classes may be absent in development environments.
-            } catch (ReflectiveOperationException | RuntimeException e) {
-                throw new IllegalStateException("Failed to register storage config " + className, e);
-            }
-        }
-
-        GsonBuilder builder = new GsonBuilder();
-        serializers.values().forEach(builder::registerTypeAdapterFactory);
-        GSON = builder.create();
+        GSON = new GsonBuilder()
+                .registerTypeAdapterFactory(storage)
+                .registerTypeAdapterFactory(compressors)
+                .create();
         initialized = true;
-        System.out.println("Voxy Forge registered " + registered + " storage config types");
-    }
-
-    private static Set<String> collectAllClasses(String packageName) {
-        Set<String> classNames = new LinkedHashSet<>();
-        String packagePath = packageName.replace('.', '/');
-        ClassLoader loader = Serialization.class.getClassLoader();
-
-        try {
-            Enumeration<URL> roots = loader.getResources(packagePath);
-            while (roots.hasMoreElements()) {
-                URL root = roots.nextElement();
-                if ("file".equals(root.getProtocol())) {
-                    Path directory = Path.of(root.toURI());
-                    try (var files = Files.walk(directory)) {
-                        files.filter(path -> path.toString().endsWith(".class"))
-                                .forEach(path -> {
-                                    String relative = directory.relativize(path).toString()
-                                            .replace(path.getFileSystem().getSeparator(), ".");
-                                    classNames.add(packageName + "." + relative.substring(0, relative.length() - 6));
-                                });
-                    }
-                } else if ("jar".equals(root.getProtocol())) {
-                    JarURLConnection connection = (JarURLConnection) root.openConnection();
-                    try (JarFile jar = connection.getJarFile()) {
-                        var entries = jar.entries();
-                        while (entries.hasMoreElements()) {
-                            String name = entries.nextElement().getName();
-                            if (name.startsWith(packagePath + "/") && name.endsWith(".class")) {
-                                classNames.add(name.substring(0, name.length() - 6).replace('/', '.'));
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException("Could not scan Voxy config classes under " + packageName, e);
-        }
-
-        return classNames;
     }
 }
