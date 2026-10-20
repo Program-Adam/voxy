@@ -74,6 +74,10 @@ configurations {
 }
 
 dependencies {
+    // Forge's ModLauncher provides Mixin at runtime; compile and process annotations here.
+    compileOnly 'org.spongepowered:mixin:0.8.5'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
     minecraft "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
 
     // Minecraft supplies the LWJGL core; Voxy bundles the extra bindings.
@@ -148,6 +152,16 @@ tasks.named('processResources', ProcessResources).configure {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = 17
+    options.compilerArgs += [
+        "-AoutRefMapFile=" + layout.buildDirectory.file('tmp/mixins/voxy-forge.refmap.json').get().asFile,
+        '-AdefaultObfuscationEnv=searge'
+    ]
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    from(layout.buildDirectory.file('tmp/mixins/voxy-forge.refmap.json')) {
+        into ''
+    }
 }
 
 tasks.test {
@@ -171,7 +185,8 @@ jar {
             'Implementation-Title'    : project.name,
             'Implementation-Version'  : project.jar.archiveVersion,
             'Implementation-Vendor'   : 'Voxy contributors',
-            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+            'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+            'MixinConfigs': 'voxy-forge.mixins.json'
         ])
     }
 }
