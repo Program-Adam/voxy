@@ -40,3 +40,8 @@ This is an incremental port. The root Fabric project is kept as the source/refer
 - [ ] World leave and shutdown release worker threads and native/GPU resources.
 
 **Important:** this branch now includes the first Forge mapper/conversion/ingestion path, but it is not yet a playable LOD renderer. The renderer is not migrated, and the new code has not been verified by a fresh build or runtime test yet.
+
+<!-- CI trigger for initial LOD renderer -->
+
+
+Rendering-hook migration follow-up: Forge's `RenderLevelStageEvent` remains the render entry point; the chunk-update mixin now uses the mapped `setBlockState` target name, and a Forge `ChunkEvent.Unload` listener queues a final chunk ingest before unload. Vertex imports were corrected for Minecraft 1.20.1's `com.mojang.blaze3d.vertex` package. These changes still require a fresh CI compile and an in-game check.
