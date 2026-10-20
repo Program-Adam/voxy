@@ -5,7 +5,6 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.cortex.voxy.common.storage.StorageBackend;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.resources.ResourceLocation;
@@ -188,7 +187,7 @@ public final class Mapper {
         catch (Exception e) { throw new IllegalStateException("Could not serialize mapping", e); }
     }
     private static CompoundTag read(byte[] bytes) {
-        try { return NbtIo.readCompressed(new ByteArrayInputStream(bytes), NbtAccounter.UNLIMITED); }
+        try { return NbtIo.readCompressed(new ByteArrayInputStream(bytes)); }
         catch (Exception e) { throw new IllegalStateException("Could not deserialize mapping", e); }
     }
 }
