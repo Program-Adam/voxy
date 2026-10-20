@@ -121,6 +121,8 @@ public final class VoxyForgeClient {
         }
     }
 
+    public static WorldEngine getWorldEngine() { return worldEngine; }
+
     private static StorageBackend createStorage(Minecraft minecraft, ClientLevel level) {
         Path worldRoot;
         var server = minecraft.getSingleplayerServer();
