@@ -9,9 +9,12 @@ import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentMap;
+import net.minecraft.world.level.ChunkPos;
 
 /**
  * Background conversion of loaded Forge chunks into Voxy voxel sections.
@@ -19,7 +22,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class VoxelIngestService implements AutoCloseable {
     private final WorldEngine world;
-    private final LinkedBlockingQueue<LevelChunk> queue = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<Long> queue = new LinkedBlockingQueue<>();
+    // Coalesce repeated block updates for a chunk. A chunk is removed from this map
+    // immediately before conversion, so changes arriving during conversion schedule
+    // one more pass instead of being lost.
+    private final ConcurrentMap<Long, LevelChunk> pending = new ConcurrentHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(true);
     private final Thread[] workers;
 
@@ -36,16 +43,22 @@ public final class VoxelIngestService implements AutoCloseable {
     }
 
     public void enqueue(LevelChunk chunk) {
-        if (running.get() && chunk != null) queue.offer(chunk);
+        if (running.get() && chunk != null) {
+            long key = ChunkPos.asLong(chunk.getPos().x, chunk.getPos().z);
+            if (pending.putIfAbsent(key, chunk) == null) queue.offer(key);
+        }
     }
 
-    public int getTaskCount() { return queue.size(); }
+    public int getTaskCount() { return pending.size(); }
 
     private void work() {
         while (running.get() || !queue.isEmpty()) {
             try {
-                LevelChunk chunk = queue.poll(250, TimeUnit.MILLISECONDS);
-                if (chunk != null) ingest(chunk);
+                Long key = queue.poll(250, TimeUnit.MILLISECONDS);
+                if (key != null) {
+                    LevelChunk chunk = pending.remove(key);
+                    if (chunk != null) ingest(chunk);
+                }
             } catch (InterruptedException interrupted) {
                 if (!running.get()) break;
                 Thread.currentThread().interrupt();
