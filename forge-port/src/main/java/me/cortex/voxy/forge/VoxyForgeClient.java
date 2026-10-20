@@ -2,58 +2,61 @@ package me.cortex.voxy.forge;
 
 import com.mojang.logging.LogUtils;
 import me.cortex.voxy.common.config.Serialization;
+import me.cortex.voxy.common.storage.StorageBackend;
+import me.cortex.voxy.common.storage.compressors.ZSTDCompressor;
+import me.cortex.voxy.common.storage.other.CompressionStorageAdaptor;
+import me.cortex.voxy.common.storage.rocksdb.RocksDBStorageBackend;
+import me.cortex.voxy.common.world.WorldEngine;
+import me.cortex.voxy.common.world.service.VoxelIngestService;
 import me.cortex.voxy.forge.config.ForgeVoxyConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import net.minecraftforge.client.gui.overlay.IGuiOverlay;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.client.gui.overlay.IGuiOverlay;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 
-/**
- * Client-only Forge lifecycle hooks. This class must only be loaded on the
- * physical client. This stage establishes a tested client lifecycle boundary
- * before the renderer is migrated.
- */
+import java.nio.file.Path;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+/** Client lifecycle, persistent world engine, and chunk-ingestion hooks. */
 public final class VoxyForgeClient {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static ClientLevel observedLevel;
     private static long clientTicks;
+    private static WorldEngine worldEngine;
+    private static final ConcurrentLinkedQueue<LevelChunk> pendingChunks = new ConcurrentLinkedQueue<>();
 
     private static final IGuiOverlay STATUS_OVERLAY = (gui, graphics, partialTick, screenWidth, screenHeight) -> {
         ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
-        if (!config.enabled || Minecraft.getInstance().options.hideGui) {
-            return;
-        }
-
+        if (!config.enabled || Minecraft.getInstance().options.hideGui) return;
         Minecraft minecraft = Minecraft.getInstance();
         String world = minecraft.level == null ? "No world" : minecraft.level.dimension().location().toString();
-        String status = "Voxy Forge port | " + world + " | LOD renderer migration in progress";
+        String status = "Voxy Forge | " + world + " | ingest queue: "
+                + (worldEngine == null ? 0 : worldEngine.ingestService.getTaskCount());
         graphics.drawString(minecraft.font, Component.literal(status), 8, 8, 0xFFFFFF, true);
     };
 
-    private VoxyForgeClient() {
-    }
+    private VoxyForgeClient() {}
 
     public static void init() {
         Serialization.init();
         ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
-        if (!java.nio.file.Files.exists(ForgeVoxyConfig.getConfigPath())) {
-            config.save();
-        }
-
-        LOGGER.info("Voxy Forge port initialized (enabled={}, renderDistance={}, ingestEnabled={}).",
+        if (!java.nio.file.Files.exists(ForgeVoxyConfig.getConfigPath())) config.save();
+        LOGGER.info("Voxy Forge initialized (enabled={}, renderDistance={}, ingestEnabled={}).",
                 config.enabled, config.renderDistance, config.ingestEnabled);
-
         MinecraftForge.EVENT_BUS.addListener(VoxyForgeClient::registerClientCommands);
         MinecraftForge.EVENT_BUS.addListener(VoxyForgeClient::onClientTick);
+        MinecraftForge.EVENT_BUS.addListener(VoxyForgeClient::onChunkLoad);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(VoxyForgeClient::registerOverlays);
     }
 
@@ -61,40 +64,78 @@ public final class VoxyForgeClient {
         event.registerAboveAll("voxy_status", STATUS_OVERLAY);
     }
 
+    private static void onChunkLoad(ChunkEvent.Load event) {
+        if (!(event.getLevel() instanceof ClientLevel level) || level != Minecraft.getInstance().level) return;
+        if (!(event.getChunk() instanceof LevelChunk chunk) || !ForgeVoxyConfig.CONFIG.ingestEnabled) return;
+        WorldEngine engine = worldEngine;
+        if (engine != null && observedLevel == level) engine.ingestService.enqueue(chunk);
+        else pendingChunks.offer(chunk);
+    }
+
     private static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) {
-            return;
-        }
+        if (event.phase != TickEvent.Phase.END) return;
         clientTicks++;
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel currentLevel = minecraft.level;
-        if (currentLevel != observedLevel) {
-            if (observedLevel != null) {
-                LOGGER.info("Voxy observed client world unload after {} client ticks.", clientTicks);
-            }
-            observedLevel = currentLevel;
-            if (currentLevel != null) {
-                LOGGER.info("Voxy observed client world load: {}.",
-                        currentLevel.dimension().location());
-            }
+        if (currentLevel == observedLevel) return;
+
+        if (worldEngine != null) {
+            LOGGER.info("Closing Voxy world engine after {} client ticks.", clientTicks);
+            try { worldEngine.close(); }
+            catch (Throwable error) { LOGGER.error("Failed to close Voxy world engine cleanly", error); }
+            worldEngine = null;
         }
+        pendingChunks.clear();
+        observedLevel = currentLevel;
+        if (currentLevel == null) {
+            LOGGER.info("Voxy observed client world unload.");
+            return;
+        }
+
+        try {
+            StorageBackend storage = createStorage(minecraft, currentLevel);
+            ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
+            worldEngine = new WorldEngine(storage,
+                    Math.max(1, config.ingestThreads), Math.max(1, config.savingThreads), 4);
+            LOGGER.info("Voxy world engine started for dimension {}.", currentLevel.dimension().location());
+            LevelChunk chunk;
+            while ((chunk = pendingChunks.poll()) != null) worldEngine.ingestService.enqueue(chunk);
+        } catch (Throwable error) {
+            LOGGER.error("Could not start Voxy world engine; chunk ingestion disabled for this world", error);
+            worldEngine = null;
+        }
+    }
+
+    private static StorageBackend createStorage(Minecraft minecraft, ClientLevel level) {
+        Path worldRoot;
+        var server = minecraft.getSingleplayerServer();
+        if (server != null) {
+            worldRoot = server.getWorldPath(LevelResource.ROOT);
+        } else {
+            String serverId = minecraft.getCurrentServer() == null ? "unknown-server"
+                    : minecraft.getCurrentServer().ip.replaceAll("[^a-zA-Z0-9._-]", "_");
+            worldRoot = minecraft.gameDirectory.toPath().resolve("voxy-forge").resolve(serverId);
+        }
+        String dimension = level.dimension().location().toString().replace(':', '_').replace('/', '_');
+        Path storagePath = worldRoot.resolve("voxy").resolve(dimension).resolve("storage");
+        StorageBackend raw = new RocksDBStorageBackend(storagePath.toAbsolutePath().toString());
+        return new CompressionStorageAdaptor(new ZSTDCompressor(7), raw);
     }
 
     private static void registerClientCommands(RegisterClientCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("voxy")
-                .then(Commands.literal("status")
-                        .executes(context -> {
-                            ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
-                            Minecraft minecraft = Minecraft.getInstance();
-                            String world = minecraft.level == null ? "none"
-                                    : minecraft.level.dimension().location().toString();
-                            context.getSource().sendSuccess(() -> Component.literal(
-                                    "Voxy Forge port: initialized; enabled=" + config.enabled
-                                            + ", world=" + world
-                                            + ", renderDistance=" + config.renderDistance
-                                            + ". The original LOD engine is not connected yet."),
-                                    false);
-                            return 1;
-                        })));
+                .then(Commands.literal("status").executes(context -> {
+                    ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
+                    Minecraft minecraft = Minecraft.getInstance();
+                    String world = minecraft.level == null ? "none" : minecraft.level.dimension().location().toString();
+                    WorldEngine engine = worldEngine;
+                    context.getSource().sendSuccess(() -> Component.literal(
+                            "Voxy Forge: enabled=" + config.enabled + ", world=" + world
+                                    + ", engine=" + (engine == null ? "stopped" : "running")
+                                    + ", queuedChunks=" + (engine == null ? 0 : engine.ingestService.getTaskCount())
+                                    + ". LOD renderer is not ported yet."),
+                            false);
+                    return 1;
+                })));
     }
 }
