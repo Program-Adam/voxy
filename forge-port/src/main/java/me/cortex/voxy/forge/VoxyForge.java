@@ -3,19 +3,14 @@ package me.cortex.voxy.forge;
 import com.mojang.logging.LogUtils;
 import me.cortex.voxy.common.config.Serialization;
 import me.cortex.voxy.forge.config.ForgeVoxyConfig;
-import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
-import net.minecraftforge.client.event.RegisterClientCommandsEvent;
-import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.fml.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 import org.slf4j.Logger;
 
 /**
- * Initial Forge entry point for the 1.20.1 port.
- *
- * Loader-specific initialization lives here. Rendering hooks and world
- * lifecycle integration are being migrated separately so Fabric classes are
- * not loaded by the Forge artifact.
+ * Common-safe Forge entry point. Client-only classes are loaded only on the
+ * physical client, so dedicated servers never resolve client event types.
  */
 @Mod(VoxyForge.MOD_ID)
 public final class VoxyForge {
@@ -29,21 +24,6 @@ public final class VoxyForge {
                 + "LOD rendering is not wired yet.",
                 config.enabled, config.renderDistance);
 
-        MinecraftForge.EVENT_BUS.addListener(this::registerClientCommands);
-    }
-
-    private void registerClientCommands(RegisterClientCommandsEvent event) {
-        event.getDispatcher().register(Commands.literal("voxy")
-                .then(Commands.literal("status")
-                        .executes(context -> {
-                            ForgeVoxyConfig config = ForgeVoxyConfig.CONFIG;
-                            context.getSource().sendSuccess(() -> Component.literal(
-                                    "Voxy Forge port scaffold: config "
-                                            + (config.enabled ? "enabled" : "disabled")
-                                            + ", render distance " + config.renderDistance
-                                            + ". LOD rendering is not wired yet."),
-                                    false);
-                            return 1;
-                        })));
+        DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> VoxyForgeClient::init);
     }
 }
